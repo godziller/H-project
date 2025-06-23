@@ -103,19 +103,16 @@ def targ():
     ports_to_scan = range(1, 1025)
 
     start_time = time.time()
-    print(f"Scanning {target}...")
-
-    for port in ports_to_scan:
-        print(f"Scanning port {port}...", end='\r')
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(0.5)  # prevent hanging
-            result = s.connect_ex((target, port))
-            if result == 0:
-                open_ports.append(port)
-
-    duration = time.time() - start_time
-    print(f"\nScan completed in {duration:.2f} seconds")
-    print("Open ports:", open_ports)
+    while time.time() - start_time < 3:
+        try:
+            for port in ports_to_scan:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(0.5)
+                    result = s.connect_ex((target.strip(), port))
+                if result == 0:
+                    open_ports.append(port)
+        except socket.timeout:
+            break
     return open_ports
 
 
