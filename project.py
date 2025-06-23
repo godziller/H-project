@@ -6,6 +6,7 @@ import time
 import sys
 import threading
 import concurrent.futures
+import ipaddress
 
 
 def get_interface_info(ifname):
@@ -50,6 +51,7 @@ def build_arp_request(src_ip, src_mac, target_ip):
 
 
 def get_subnet(ip):
+    # get subnet for scan e.g 192.168.1.__
     return '.'.join(ip.split('.')[:3]) + '.'
 
 
@@ -95,23 +97,29 @@ def scan_network(ifname):
             except socket.timeout:
                 break
     else:
-        # FIX NEEDING SUDO
         sys.exit("Usage: 'sudo python3 project.py <command>' ")
 
 
 def target_init():
+    # Validate IP input
+    while True:
+        target = input("IP of target: ")
+        try:
+            ipaddress.ip_address(target)
+            break
+        except ValueError:
+            print("Invalid IP address. Please enter a valid IPv4 or IPv6 address.")
+
+    # Maximum amount of TCP ports to scan
     ports_to_scan = range(1, 65536)
-    target = input("IP of target: ")
-    start_time = time.time()
+    start_time = time.time()  # Clock for timeout exit
 
     print(f"Starting scan on {target}...\n")
 
+    # Using thread pool to deploy threads for port scanning
     with concurrent.futures.ThreadPoolExecutor(max_workers=1000) as executor:
-        # Submit all jobs at once
         futures = [executor.submit(targ, target, port)
                    for port in ports_to_scan]
-
-        # Optional: wait for all futures and handle results
         concurrent.futures.wait(futures)
 
     duration = time.time() - start_time
@@ -119,9 +127,10 @@ def target_init():
 
 
 def targ(target, port):
+    # Create simple TCP socket as 's'
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.settimeout(0.5)
-        result = s.connect_ex((target, port))
+        result = s.connect_ex((target, port))  # connect_ex --> int (0 | 1)
         if result == 0:
             print(f"[OPEN] Port {port}")
         return result
@@ -130,10 +139,14 @@ def targ(target, port):
 if __name__ == "__main__":
     ports_to_scan = range(1, 1025)
 
-    if sys.argv[1] == "scan":
-        scan_network("wlp0s20f3")   # Replace "eth0" with your interface name
-    elif sys.argv[1] == "targ":
-        target_init()
+    if len(sys.argv) == 2:
+        if sys.argv[1] == "scan":
+            # Replace "eth0" with your interface name
+            scan_network("wlp0s20f3")
+        elif sys.argv[1] == "targ":
+            target_init()
 
+        else:
+            sys.exit("Usage: sudo python3 project.py <scan|targ>")
     else:
-        ...
+        sys.exit("Usage: sudo python3 project.py <scan|targ>")
