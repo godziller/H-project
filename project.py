@@ -4,6 +4,8 @@ import fcntl
 import binascii
 import time
 import sys
+import threading
+import concurrent.futures
 
 
 def get_interface_info(ifname):
@@ -97,32 +99,41 @@ def scan_network(ifname):
         sys.exit("Usage: 'sudo python3 project.py <command>' ")
 
 
-def targ():
+def target_init():
+    ports_to_scan = range(1, 65536)
     target = input("IP of target: ")
-    open_ports = []
-    ports_to_scan = range(1, 1025)
-
     start_time = time.time()
-    print(f"Scanning {target}...")
 
-    for port in ports_to_scan:
-        print(f"Scanning port {port}...", end='\r')
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(0.5)  # prevent hanging
-            result = s.connect_ex((target, port))
-            if result == 0:
-                open_ports.append(port)
+    print(f"Starting scan on {target}...\n")
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1000) as executor:
+        # Submit all jobs at once
+        futures = [executor.submit(targ, target, port)
+                   for port in ports_to_scan]
+
+        # Optional: wait for all futures and handle results
+        concurrent.futures.wait(futures)
 
     duration = time.time() - start_time
-    print(f"\nScan completed in {duration:.2f} seconds")
-    print("Open ports:", open_ports)
-    return open_ports
+    print(f"\nScan completed in {duration:.2f} seconds.")
+
+
+def targ(target, port):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.5)
+        result = s.connect_ex((target, port))
+        if result == 0:
+            print(f"[OPEN] Port {port}")
+        return result
 
 
 if __name__ == "__main__":
+    ports_to_scan = range(1, 1025)
+
     if sys.argv[1] == "scan":
         scan_network("wlp0s20f3")   # Replace "eth0" with your interface name
     elif sys.argv[1] == "targ":
-        print(targ())
+        target_init()
+
     else:
         ...
